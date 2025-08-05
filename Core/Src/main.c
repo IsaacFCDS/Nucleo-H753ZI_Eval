@@ -96,7 +96,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	float tempC;
+	float tempC_int,tempF_ext;
 	//Assumes vref of 3.3v, we are using 2.5v so these need scaled.
 	float TS_CAL1 = (float)(*(uint16_t*)0x1FF1E820);
 	float TS_CAL2 = (float)(*(uint16_t*)0x1FF1E840);
@@ -147,7 +147,8 @@ int main(void)
 
 	  if(convComplete){
 		  convComplete = 0;
-		  tempC = tempSlope * ((float)aADCxConvertedData3[2] - TS_CAL1) + TS_CAL1_TEMP;
+		  tempC_int = tempSlope * ((float)aADCxConvertedData3[2] - TS_CAL1) + TS_CAL1_TEMP;
+		  tempF_ext = result[0]*100; //10mv/degF (LM34)
 	  }
   }
   /* USER CODE END 3 */
@@ -472,7 +473,6 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, LD1_Pin|LD3_Pin|LD2_Pin, GPIO_PIN_RESET);
