@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -47,6 +48,27 @@ FDCAN_HandleTypeDef hfdcan1;
 
 TIM_HandleTypeDef htim1;
 
+/* Definitions for can */
+osThreadId_t canHandle;
+const osThreadAttr_t can_attributes = {
+  .name = "can",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for hrtbt */
+osThreadId_t hrtbtHandle;
+const osThreadAttr_t hrtbt_attributes = {
+  .name = "hrtbt",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+/* Definitions for spi */
+osThreadId_t spiHandle;
+const osThreadAttr_t spi_attributes = {
+  .name = "spi",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 /* USER CODE BEGIN PV */
 
 float scalar = 3.3f/32768.0f;
@@ -68,6 +90,10 @@ static void MX_BDMA_Init(void);
 static void MX_FDCAN1_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_ADC3_Init(void);
+void canTask(void *argument);
+void task_heartbeat(void *argument);
+void task_spi(void *argument);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -96,13 +122,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	float tempC_int,tempF_ext;
-	//Assumes vref of 3.3v, we are using 2.5v so these need scaled.
-	float TS_CAL1 = (float)(*(uint16_t*)0x1FF1E820);
-	float TS_CAL2 = (float)(*(uint16_t*)0x1FF1E840);
-	float tempSlope = ((TS_CAL2_TEMP - TS_CAL1_TEMP)/(TS_CAL2 - TS_CAL1));
-	FDCAN_TxHeaderTypeDef pTxHeader;
-	uint8_t pTxData[8],
 
   /* USER CODE END 1 */
 
@@ -136,40 +155,51 @@ int main(void)
 	HAL_ADC_Start_DMA(&hadc3, (uint32_t *)aADCxConvertedData3, ADC_DATA_BUFFER_SIZE3);
 
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-	pTxHeader.Identifier = 0x1FFF2018;          /*!< Specifies the identifier.
-	                                     This parameter must be a number between:
-	                                      - 0 and 0x7FF, if IdType is FDCAN_STANDARD_ID
-	                                      - 0 and 0x1FFFFFFF, if IdType is FDCAN_EXTENDED_ID               */
 
-	pTxHeader.IdType = FDCAN_EXTENDED_ID;              /*!< Specifies the identifier type for the message that will be
-	                                     transmitted.
-	                                     This parameter can be a value of @ref FDCAN_id_type               */
-
-	pTxHeader.TxFrameType = FDCAN_DATA_FRAME;         /*!< Specifies the frame type of the message that will be transmitted.
-	                                     This parameter can be a value of @ref FDCAN_frame_type            */
-
-	pTxHeader.DataLength = FDCAN_DLC_BYTES_8;          /*!< Specifies the length of the frame that will be transmitted.
-	                                      This parameter can be a value of @ref FDCAN_data_length_code     */
-
-	pTxHeader.ErrorStateIndicator = FDCAN_ESI_PASSIVE; /*!< Specifies the error state indicator.
-	                                     This parameter can be a value of @ref FDCAN_error_state_indicator */
-
-	pTxHeader.BitRateSwitch = FDCAN_BRS_OFF;       /*!< Specifies whether the Tx frame will be transmitted with or without
-	                                     bit rate switching.
-	                                     This parameter can be a value of @ref FDCAN_bit_rate_switching    */
-
-	pTxHeader.FDFormat = FDCAN_CLASSIC_CAN;            /*!< Specifies whether the Tx frame will be transmitted in classic or
-	                                     FD format.
-	                                     This parameter can be a value of @ref FDCAN_format                */
-
-	pTxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;  /*!< Specifies the event FIFO control.
-	                                     This parameter can be a value of @ref FDCAN_EFC                   */
-
-	pTxHeader.MessageMarker = 0x00;       /*!< Specifies the message marker to be copied into Tx Event FIFO
-	                                     element for identification of Tx message status.
-	                                     This parameter must be a number between 0 and 0xFF                */
 	HAL_FDCAN_Start(&hfdcan1);
   /* USER CODE END 2 */
+
+  /* Init scheduler */
+  osKernelInitialize();
+
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* creation of can */
+  canHandle = osThreadNew(canTask, NULL, &can_attributes);
+
+  /* creation of hrtbt */
+  hrtbtHandle = osThreadNew(task_heartbeat, NULL, &hrtbt_attributes);
+
+  /* creation of spi */
+  spiHandle = osThreadNew(task_spi, NULL, &spi_attributes);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* USER CODE BEGIN RTOS_EVENTS */
+  /* add events, ... */
+  /* USER CODE END RTOS_EVENTS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -178,21 +208,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  if(convComplete){
-		  convComplete = 0;
-		  tempC_int = tempSlope * ((float)aADCxConvertedData3[2] - TS_CAL1) + TS_CAL1_TEMP;
-		  tempF_ext = result[0]*100; //10mv/degF (LM34)
-		  pTxData[0] = 0x01;
-		  pTxData[1] = 0x02;
-		  pTxData[2] = 0x03;
-		  pTxData[3] = 0x04;
-		  pTxData[4] = 0x05;
-		  pTxData[5] = 0x06;
-		  pTxData[6] = 0x07;
-		  pTxData[7] = 0x08;
-		  HAL_FDCAN_AddMessageToTxBuffer(&hfdcan1, &pTxHeader, pTxData, FDCAN_TX_BUFFER0);
-		  HAL_FDCAN_EnableTxBufferRequest(&hfdcan1, FDCAN_TX_BUFFER0);
-	  }
+
   }
   /* USER CODE END 3 */
 }
@@ -216,19 +232,22 @@ void SystemClock_Config(void)
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
 
-  /** Macro to configure the PLL clock source
-  */
-  __HAL_RCC_PLL_PLLSOURCE_CONFIG(RCC_PLLSOURCE_CSI);
-
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_CSI|RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_CSI;
   RCC_OscInitStruct.CSIState = RCC_CSI_ON;
   RCC_OscInitStruct.CSICalibrationValue = RCC_CSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_CSI;
+  RCC_OscInitStruct.PLL.PLLM = 1;
+  RCC_OscInitStruct.PLL.PLLN = 120;
+  RCC_OscInitStruct.PLL.PLLP = 2;
+  RCC_OscInitStruct.PLL.PLLQ = 2;
+  RCC_OscInitStruct.PLL.PLLR = 2;
+  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
+  RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
+  RCC_OscInitStruct.PLL.PLLFRACN = 0;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -239,15 +258,15 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2
                               |RCC_CLOCKTYPE_D3PCLK1|RCC_CLOCKTYPE_D1PCLK1;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV1;
   RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
@@ -398,7 +417,7 @@ static void MX_FDCAN1_Init(void)
   hfdcan1.Init.RxBuffersNbr = 0;
   hfdcan1.Init.RxBufferSize = FDCAN_DATA_BYTES_8;
   hfdcan1.Init.TxEventsNbr = 0;
-  hfdcan1.Init.TxBuffersNbr = 0;
+  hfdcan1.Init.TxBuffersNbr = 32;
   hfdcan1.Init.TxFifoQueueElmtsNbr = 0;
   hfdcan1.Init.TxFifoQueueMode = FDCAN_TX_FIFO_OPERATION;
   hfdcan1.Init.TxElmtSize = FDCAN_DATA_BYTES_8;
@@ -493,7 +512,7 @@ static void MX_BDMA_Init(void)
 
   /* DMA interrupt init */
   /* BDMA_Channel0_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(BDMA_Channel0_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(BDMA_Channel0_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(BDMA_Channel0_IRQn);
 
 }
@@ -549,6 +568,91 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_canTask */
+/**
+  * @brief  Function implementing the can thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_canTask */
+void canTask(void *argument)
+{
+  /* USER CODE BEGIN 5 */
+	float tempC_int,tempF_ext;
+	//Assumes vref of 3.3v, we are using 2.5v so these need scaled.
+	float TS_CAL1 = (float)(*(uint16_t*)0x1FF1E820);
+	float TS_CAL2 = (float)(*(uint16_t*)0x1FF1E840);
+	float tempSlope = ((TS_CAL2_TEMP - TS_CAL1_TEMP)/(TS_CAL2 - TS_CAL1));
+	FDCAN_TxHeaderTypeDef pTxHeader;
+	uint8_t pTxData[8];
+	pTxHeader.Identifier = 0x1FFF2018;
+	pTxHeader.IdType = FDCAN_EXTENDED_ID;
+	pTxHeader.TxFrameType = FDCAN_DATA_FRAME;
+	pTxHeader.DataLength = FDCAN_DLC_BYTES_8;
+	pTxHeader.ErrorStateIndicator = FDCAN_ESI_PASSIVE;
+	pTxHeader.BitRateSwitch = FDCAN_BRS_OFF;
+	pTxHeader.FDFormat = FDCAN_CLASSIC_CAN;
+	pTxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+	pTxHeader.MessageMarker = 0x00;
+  /* Infinite loop */
+  for(;;)
+  {
+	  if(convComplete){
+		  convComplete = 0;
+		  tempC_int = tempSlope * ((float)aADCxConvertedData3[2] - TS_CAL1) + TS_CAL1_TEMP;
+		  tempF_ext = result[0]*100; //10mv/degF (LM34)
+		  pTxData[0] = tempF_ext;
+		  pTxData[1] =(uint8_t)tempC_int;
+		  pTxData[2] = 0x04;
+		  pTxData[3] = 0x04;
+		  pTxData[4] = 0x05;
+		  pTxData[5] = 0x06;
+		  pTxData[6] = 0x07;
+		  pTxData[7]++;
+		  HAL_FDCAN_AddMessageToTxBuffer(&hfdcan1, &pTxHeader, pTxData, FDCAN_TX_BUFFER0);
+		  HAL_FDCAN_EnableTxBufferRequest(&hfdcan1 , FDCAN_TX_BUFFER0);
+	  }
+    osDelay(500);
+  }
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_task_heartbeat */
+/**
+* @brief Function implementing the hrtbt thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_task_heartbeat */
+void task_heartbeat(void *argument)
+{
+  /* USER CODE BEGIN task_heartbeat */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END task_heartbeat */
+}
+
+/* USER CODE BEGIN Header_task_spi */
+/**
+* @brief Function implementing the spi thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_task_spi */
+void task_spi(void *argument)
+{
+  /* USER CODE BEGIN task_spi */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END task_spi */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.
