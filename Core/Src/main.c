@@ -101,6 +101,8 @@ int main(void)
 	float TS_CAL1 = (float)(*(uint16_t*)0x1FF1E820);
 	float TS_CAL2 = (float)(*(uint16_t*)0x1FF1E840);
 	float tempSlope = ((TS_CAL2_TEMP - TS_CAL1_TEMP)/(TS_CAL2 - TS_CAL1));
+	FDCAN_TxHeaderTypeDef pTxHeader;
+	uint8_t pTxData[8],
 
   /* USER CODE END 1 */
 
@@ -134,7 +136,39 @@ int main(void)
 	HAL_ADC_Start_DMA(&hadc3, (uint32_t *)aADCxConvertedData3, ADC_DATA_BUFFER_SIZE3);
 
 	HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+	pTxHeader.Identifier = 0x1FFF2018;          /*!< Specifies the identifier.
+	                                     This parameter must be a number between:
+	                                      - 0 and 0x7FF, if IdType is FDCAN_STANDARD_ID
+	                                      - 0 and 0x1FFFFFFF, if IdType is FDCAN_EXTENDED_ID               */
 
+	pTxHeader.IdType = FDCAN_EXTENDED_ID;              /*!< Specifies the identifier type for the message that will be
+	                                     transmitted.
+	                                     This parameter can be a value of @ref FDCAN_id_type               */
+
+	pTxHeader.TxFrameType = FDCAN_DATA_FRAME;         /*!< Specifies the frame type of the message that will be transmitted.
+	                                     This parameter can be a value of @ref FDCAN_frame_type            */
+
+	pTxHeader.DataLength = FDCAN_DLC_BYTES_8;          /*!< Specifies the length of the frame that will be transmitted.
+	                                      This parameter can be a value of @ref FDCAN_data_length_code     */
+
+	pTxHeader.ErrorStateIndicator = FDCAN_ESI_PASSIVE; /*!< Specifies the error state indicator.
+	                                     This parameter can be a value of @ref FDCAN_error_state_indicator */
+
+	pTxHeader.BitRateSwitch = FDCAN_BRS_OFF;       /*!< Specifies whether the Tx frame will be transmitted with or without
+	                                     bit rate switching.
+	                                     This parameter can be a value of @ref FDCAN_bit_rate_switching    */
+
+	pTxHeader.FDFormat = FDCAN_CLASSIC_CAN;            /*!< Specifies whether the Tx frame will be transmitted in classic or
+	                                     FD format.
+	                                     This parameter can be a value of @ref FDCAN_format                */
+
+	pTxHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;  /*!< Specifies the event FIFO control.
+	                                     This parameter can be a value of @ref FDCAN_EFC                   */
+
+	pTxHeader.MessageMarker = 0x00;       /*!< Specifies the message marker to be copied into Tx Event FIFO
+	                                     element for identification of Tx message status.
+	                                     This parameter must be a number between 0 and 0xFF                */
+	HAL_FDCAN_Start(&hfdcan1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -144,11 +178,20 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
 	  if(convComplete){
 		  convComplete = 0;
 		  tempC_int = tempSlope * ((float)aADCxConvertedData3[2] - TS_CAL1) + TS_CAL1_TEMP;
 		  tempF_ext = result[0]*100; //10mv/degF (LM34)
+		  pTxData[0] = 0x01;
+		  pTxData[1] = 0x02;
+		  pTxData[2] = 0x03;
+		  pTxData[3] = 0x04;
+		  pTxData[4] = 0x05;
+		  pTxData[5] = 0x06;
+		  pTxData[6] = 0x07;
+		  pTxData[7] = 0x08;
+		  HAL_FDCAN_AddMessageToTxBuffer(&hfdcan1, &pTxHeader, pTxData, FDCAN_TX_BUFFER0);
+		  HAL_FDCAN_EnableTxBufferRequest(&hfdcan1, FDCAN_TX_BUFFER0);
 	  }
   }
   /* USER CODE END 3 */
@@ -337,9 +380,9 @@ static void MX_FDCAN1_Init(void)
   hfdcan1.Init.AutoRetransmission = DISABLE;
   hfdcan1.Init.TransmitPause = DISABLE;
   hfdcan1.Init.ProtocolException = DISABLE;
-  hfdcan1.Init.NominalPrescaler = 16;
+  hfdcan1.Init.NominalPrescaler = 19;
   hfdcan1.Init.NominalSyncJumpWidth = 1;
-  hfdcan1.Init.NominalTimeSeg1 = 1;
+  hfdcan1.Init.NominalTimeSeg1 = 2;
   hfdcan1.Init.NominalTimeSeg2 = 1;
   hfdcan1.Init.DataPrescaler = 1;
   hfdcan1.Init.DataSyncJumpWidth = 1;
@@ -389,9 +432,9 @@ static void MX_TIM1_Init(void)
 
   /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 10000;
+  htim1.Init.Prescaler = 64000;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 4000;
+  htim1.Init.Period = 1000;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
@@ -407,7 +450,7 @@ static void MX_TIM1_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 2000;
+  sConfigOC.Pulse = 500;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
