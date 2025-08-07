@@ -22,7 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "max31865.h"
+#include "max31865.h" //RTD
+#include "max31856.h" //TC
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -743,9 +744,10 @@ void task_spi(void *argument)
 {
   /* USER CODE BEGIN task_spi */
   float tempRtd_c;
+  uint8_t max31865_fault;
   uint8_t max31965_drdy_state = 0;
-  initMax31865(spiCblk,max31865_cs);
-  tempRtd_c = readMax31865(spiCblk,max31865_cs);
+  max31865_init(spiCblk,max31865_cs);
+  max31865_fault = max31865_readTemp(&tempRtd_c,spiCblk,max31865_cs);
 
   /* Infinite loop */
   for(;;)
@@ -756,7 +758,12 @@ void task_spi(void *argument)
 		 case 0: //Input High
 		 	 break;
 		 case 1: //Rising edge
-			 tempRtd_c = readMax31865(spiCblk,max31865_cs);
+			 max31865_fault = max31865_readTemp(&tempRtd_c,spiCblk,max31865_cs);
+			 if(max31865_fault > 0)
+			 {
+				 //Handle fault here.
+				 tempRtd_c = 0.0f;
+			 }
 			 break;
 		 case 3: //Input Low
 			 break;

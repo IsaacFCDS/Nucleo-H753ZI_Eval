@@ -101,7 +101,20 @@ typedef union{
     uint8_t byte[2];
 }MAX31856_LINEARIZED_TEMP_FAULT_THRESHOLD_t;
 
-/*
+/**
+ * txData The array of data to be sent from master to peripheral on the SPI bus
+ * rxData The array of data sent from peripheral to master on SPI bus
+ * length When called this is the number of bytes to be transacted.
+ */
+typedef void (spiBusCallback)(uint8_t *txData, uint8_t *rxData, uint8_t length);
+typedef void (chipSelectCallback)(uint8_t isLow);
+
+
+uint8_t max31856_readTemp(float* tempC, spiBusCallback cblk,chipSelectCallback csCblk);
+void max31856_init(spiBusCallback cblk,chipSelectCallback csCblk);
+
+/**
+ * @brief
  * Between the offset and the Q8 notation. Please use this function to convert to
  * actual temperature.
  *
@@ -110,7 +123,7 @@ typedef union{
  * byte[1] - Middle Significant byte
  * byte[2] - Low Significant byte
  */
-float MAX31856_convertBytesToTemp(uint8_t *byte);
+void max31856_convertBytesToTemperature(float * temp, uint8_t *adc);
 
 #ifdef __cplusplus
 }

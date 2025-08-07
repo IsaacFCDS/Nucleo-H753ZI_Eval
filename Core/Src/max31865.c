@@ -1,6 +1,6 @@
 #include "max31865.h"
 
-static RTD_Table_t RTDTable= {
+static RTD_Table_t RTDTable_pt100= {
 		{ 1517, -200},
 		{ 2394, -175},
 		{ 3254, -150},
@@ -48,58 +48,62 @@ static RTD_Table_t RTDTable= {
 		{23697, 525},
 		{24370, 550}
 };
+static uint8_t txData[9] = {0};
+static uint8_t rxData[9] = {0};
+static uint16_t adc;
+static float result = -555.0f;
 
-void initMax31865(SpiBusCallback cblk,chipSelectCallback csCblk){
-	uint8_t txData[2];
-	uint8_t rxData[2];
+void max31865_init(spiBusCallback cblk,chipSelectCallback csCblk){
 	//write
 	txData[0] = 0x80;
-	txData[1] = 0b11000010;
+	/*
+	 * b[7] - VBias - On
+	 * b[6] - Conversion Auto
+	 * b[5] - One Shot Off
+	 * b[4] - 2/4 wire
+	 * b[3:2] - Auto Fault Detection 0b01
+	 * b[1] - Fault Clear
+	 * b[0] - 60 hz filter enabled.
+	 */
+	txData[1] = 0b11000110;
 	csCblk(0x01);
 	cblk(txData,rxData,2);
 	csCblk(0x00);
 }
 
-float readMax31865(SpiBusCallback cblk, chipSelectCallback csCblk){
-	uint8_t txData[3];
-	uint8_t rxData[3];
-	int16_t adc;
-	float result = -555.0f;
-	txData[0] = 0x01;
+uint8_t max31865_readTemp(float* tempC, spiBusCallback cblk,chipSelectCallback csCblk){
+	txData[0] = 0x00;
 	txData[1] = 0x00;
 	txData[2] = 0x00;
-	//Big endian?
-	adc = (int16_t)(txData[1] << 8) | txData[2];
 	csCblk(0x01);
-	cblk(txData,rxData,3);
+	cblk(txData,rxData,9);
 	csCblk(0x00);
-	convertMax31865ToTemperature(&result,adc);
-	return result;
+	adc = (int16_t)(rxData[2] << 9) | rxData[3];
+	max31865_convertBytesToTemperature(&result,adc);
+	*tempC = result;
+	return rxData[7]; //Fault register.
 }
 
-void convertMax31865ToTemperature(float * temp, uint16_t adc){
+void max31865_convertBytesToTemperature(float * temp, uint16_t adc){
 	float slope = 1.0;
 	uint8_t index = 0;
 	//uint16_t rawTempValue = *(data+1)<<8 | *(data);
 
-	if(adc < RTDTable[0][0]){
-		*temp = (float)RTDTable[0][1]; //Return the the first temperature entry.
+	if(adc < RTDTable_pt100[0][0]){
+		*temp = (float)RTDTable_pt100[0][1]; //Return the the first temperature entry.
 	}
-	else if(adc > RTDTable[MAX31865_TABLE_ROWS-1][0])
+	else if(adc > RTDTable_pt100[MAX31865_TABLE_ROWS-1][0])
 	{
-		*temp = (float)(RTDTable[MAX31865_TABLE_ROWS-1][1]);
+		*temp = (float)(RTDTable_pt100[MAX31865_TABLE_ROWS-1][1]);
 	}
 	else
 	{
-		while(RTDTable[index][0] < adc && index < MAX31865_TABLE_ROWS){
+		while(RTDTable_pt100[index][0] < adc && index < MAX31865_TABLE_ROWS){
 			index++;
 		}
 		// Found the index where the adc entry is greater than the adc value.
-		slope = ((float)RTDTable[index][1] - (float)RTDTable[index-1][1]) / ((float)RTDTable[index][0] - (float)RTDTable[index-1][0]);
-		*(temp) = slope * ((float)(adc - RTDTable[index-1][0])) + (float)RTDTable[index-1][1];
+		slope = ((float)RTDTable_pt100[index][1] - (float)RTDTable_pt100[index-1][1]) / ((float)RTDTable_pt100[index][0] - (float)RTDTable_pt100[index-1][0]);
+		*(temp) = slope * ((float)(adc - RTDTable_pt100[index-1][0])) + (float)RTDTable_pt100[index-1][1];
 	}
 }
 
-RTD_Table_t* getTablePointer(void){
-	return RTDTable;
-}
