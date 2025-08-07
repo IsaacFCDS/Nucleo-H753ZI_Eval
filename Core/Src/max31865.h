@@ -25,14 +25,15 @@ typedef int16_t RTD_Table_t[MAX31865_TABLE_ROWS][MAX31865_TABLE_COl];
  * rxData The array of data sent from peripheral to master on SPI bus
  * length When called this is the number of bytes to be transacted.
  */
-typedef void (*SpiBusCallback)(uint8_t *txData, uint8_t *rxdata, uint8_t length);
+typedef void (SpiBusCallback)(uint8_t *txData, uint8_t *rxData, uint8_t length);
+typedef void (chipSelectCallback)(uint8_t isLow);
 
 void max31865_initializeDevice(void);
-float readMax31865(SpiBusCallback);
-void initMax31865(SpiBusCallback);
-
+float readMax31865(SpiBusCallback cblk,chipSelectCallback csCblk);
+void initMax31865(SpiBusCallback cblk,chipSelectCallback csCblk);
 void convertMax31865ToTemperature(float * temp, uint16_t adc);
 
+// Used for unit testing.
 RTD_Table_t* getTablePointer(void);
 
 #ifdef __cplusplus

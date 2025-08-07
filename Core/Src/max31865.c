@@ -49,17 +49,18 @@ static RTD_Table_t RTDTable= {
 		{24370, 550}
 };
 
-void initMax31865(SpiBusCallback cblk){
+void initMax31865(SpiBusCallback cblk,chipSelectCallback csCblk){
 	uint8_t txData[2];
 	uint8_t rxData[2];
 	//write
 	txData[0] = 0x80;
 	txData[1] = 0b11000010;
-
+	csCblk(0x01);
 	cblk(txData,rxData,2);
+	csCblk(0x00);
 }
 
-float readMax31865(SpiBusCallback cblk){
+float readMax31865(SpiBusCallback cblk, chipSelectCallback csCblk){
 	uint8_t txData[3];
 	uint8_t rxData[3];
 	int16_t adc;
@@ -69,7 +70,9 @@ float readMax31865(SpiBusCallback cblk){
 	txData[2] = 0x00;
 	//Big endian?
 	adc = (int16_t)(txData[1] << 8) | txData[2];
+	csCblk(0x01);
 	cblk(txData,rxData,3);
+	csCblk(0x00);
 	convertMax31865ToTemperature(&result,adc);
 	return result;
 }
