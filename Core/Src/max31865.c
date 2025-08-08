@@ -65,7 +65,7 @@ void max31865_init(spiBusCallback cblk,chipSelectCallback csCblk){
 	 * b[1] - Fault Clear
 	 * b[0] - 60 hz filter enabled.
 	 */
-	txData[1] = 0b11000110;
+	txData[1] = 0xC2;
 	csCblk(0x01);
 	cblk(txData,rxData,2);
 	csCblk(0x00);
@@ -74,7 +74,6 @@ void max31865_init(spiBusCallback cblk,chipSelectCallback csCblk){
 uint8_t max31865_readTemp(float* tempC, spiBusCallback cblk,chipSelectCallback csCblk){
 	txData[0] = 0x00;
 	txData[1] = 0x00;
-	txData[2] = 0x00;
 	csCblk(0x01);
 	cblk(txData,rxData,9);
 	csCblk(0x00);

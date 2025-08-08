@@ -36,16 +36,29 @@
 	 MAX31856_CR0_OPEN_CIRCUIT_FAULT_MODE3 = 0x03
  }MAX31856_CR0_OPEN_CIRCUIT_FAULT_t;
 
+ #define MAX31856_CONV_MODE_MAN 0
+ #define MAX31856_CONV_MODE_AUTO 1
+ #define MAX31856_OneShot_NONE 0
+ #define MAX31856_OneShot_REQ 1
+ #define MAX31856_CJ_DISABLE 0
+ #define MAX31856_CJ_ENABLE 1
+ #define MAX31856_FAULT_MODE_COMP 0
+ #define MAX31856_FAULT_MODE_INT 1
+ #define MAX31856_FAULT_NoClr 0
+ #define MAX31856_FAULT_CLEAR 1
+ #define MAX31856_NOISE_FILTER_60hz 0
+ #define MAX31856_NOISE_FILTER_50hz 1
+
  typedef union{
 	 uint8_t value;
 	 struct{
-		uint8_t ConvMode:1;
-		uint8_t OneShot:1;
-		uint8_t OpenCircuitFault:2;
-		uint8_t ColdJunctionSensorDisable:1;
-		uint8_t FaultMode:1;
-		uint8_t Fault_CLEAR:1;
-		uint8_t NoiseRejectionFilter_50hz:1;
+		 uint8_t NoiseRejectionFilter:1;
+		 uint8_t FaultClear:1;
+		 uint8_t FaultMode:1;
+		 uint8_t ColdJunctionSensorDisable:1;
+		 uint8_t OpenCircuitFault:2;
+		 uint8_t OneShot:1;
+		 uint8_t ConvMode:1;
 	 };
  }MAX31856_CR0_t;
 
@@ -73,22 +86,22 @@
  typedef union{
 	 uint8_t value;
 		 struct{
-		 	 uint8_t reserved:1;
-		 	 uint8_t ACGSEL:3;
-		 	 uint8_t TC_TYPE:4;
+	 	 uint8_t TC_TYPE:4;
+	 	 uint8_t ACGSEL:3;
+	 	 uint8_t reserved:1;
 		 };
  }MAX31856_CR1_t;
 
 typedef union{
 	uint8_t value;
 	struct{
-		uint8_t reserved:2;
-		uint8_t CJ_High_En:1;
-		uint8_t CJ_Low_En:1;
-		uint8_t TC_High_En:1;
-		uint8_t TC_Low_En:1;
-		uint8_t OV_UV_FAULT:1;
 		uint8_t Open_Fault:1;
+		uint8_t OV_UV_FAULT:1;
+		uint8_t TC_Low_En:1;
+		uint8_t TC_High_En:1;
+		uint8_t CJ_Low_En:1;
+		uint8_t CJ_High_En:1;
+		uint8_t reserved:2;
 	};
 }MAX31856_FAULTS_MASK_t;
 
@@ -109,9 +122,10 @@ typedef union{
 typedef void (spiBusCallback)(uint8_t *txData, uint8_t *rxData, uint8_t length);
 typedef void (chipSelectCallback)(uint8_t isLow);
 
+void max31856_init(spiBusCallback cblk,chipSelectCallback csCblk);
 
 uint8_t max31856_readTemp(float* tempC, spiBusCallback cblk,chipSelectCallback csCblk);
-void max31856_init(spiBusCallback cblk,chipSelectCallback csCblk);
+
 
 /**
  * @brief

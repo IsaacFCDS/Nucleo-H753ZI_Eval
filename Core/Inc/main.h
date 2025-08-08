@@ -65,6 +65,10 @@ void Error_Handler(void);
 #define MAX31865_CS_GPIO_Port GPIOA
 #define LD1_Pin GPIO_PIN_0
 #define LD1_GPIO_Port GPIOB
+#define MAX31856_DRDY_Pin GPIO_PIN_12
+#define MAX31856_DRDY_GPIO_Port GPIOB
+#define MAX31856_FAULT_Pin GPIO_PIN_13
+#define MAX31856_FAULT_GPIO_Port GPIOB
 #define LD3_Pin GPIO_PIN_14
 #define LD3_GPIO_Port GPIOB
 #define STLINK_RX_Pin GPIO_PIN_8
@@ -73,6 +77,8 @@ void Error_Handler(void);
 #define STLINK_TX_GPIO_Port GPIOD
 #define MAX31865_DRDY_Pin GPIO_PIN_7
 #define MAX31865_DRDY_GPIO_Port GPIOC
+#define MAX31856_CS_Pin GPIO_PIN_15
+#define MAX31856_CS_GPIO_Port GPIOA
 #define LD2_Pin GPIO_PIN_7
 #define LD2_GPIO_Port GPIOB
 
